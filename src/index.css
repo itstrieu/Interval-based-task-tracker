@@ -25,53 +25,55 @@
   --radius-sm: 10px;
 }
 
-/* Warm dark palette — quiet, never black */
+/* Warm dark palette — inspired by candlelight, not mud.
+   Cards share one surface; urgency is shown by accent dots and a
+   subtle left stripe (see .task rules below), not by tinted backgrounds. */
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme='light']) {
-    --bg: #2a2621;
-    --bg-soft: #343028;
-    --ink: #ece4d3;
-    --ink-soft: #bbb1a0;
-    --ink-faint: #7d7567;
-    --line: #403a31;
+    --bg: #1a1715;
+    --bg-soft: #242120;
+    --ink: #ede3d0;
+    --ink-soft: #b5ab99;
+    --ink-faint: #756c5e;
+    --line: #2e2a26;
 
-    --fresh-bg: #343028;
-    --fresh-accent: #7d7567;
+    --fresh-bg: #242120;
+    --fresh-accent: #756c5e;
 
-    --approaching-bg: #4a3d28;
-    --approaching-accent: #d4a361;
+    --approaching-bg: #242120;
+    --approaching-accent: #e0a968;
 
-    --due-bg: #5a3d28;
-    --due-accent: #d88a55;
+    --due-bg: #242120;
+    --due-accent: #e88a5e;
 
-    --danger: #d88a7a;
-    --danger-soft: rgba(216, 138, 122, 0.25);
+    --danger: #e59a88;
+    --danger-soft: rgba(229, 154, 136, 0.2);
 
-    --shadow: 0 1px 2px rgba(0, 0, 0, 0.2), 0 4px 14px rgba(0, 0, 0, 0.25);
+    --shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 4px 14px rgba(0, 0, 0, 0.35);
   }
 }
 
 :root[data-theme='dark'] {
-  --bg: #2a2621;
-  --bg-soft: #343028;
-  --ink: #ece4d3;
-  --ink-soft: #bbb1a0;
-  --ink-faint: #7d7567;
-  --line: #403a31;
+  --bg: #1a1715;
+  --bg-soft: #242120;
+  --ink: #ede3d0;
+  --ink-soft: #b5ab99;
+  --ink-faint: #756c5e;
+  --line: #2e2a26;
 
-  --fresh-bg: #343028;
-  --fresh-accent: #7d7567;
+  --fresh-bg: #242120;
+  --fresh-accent: #756c5e;
 
-  --approaching-bg: #4a3d28;
-  --approaching-accent: #d4a361;
+  --approaching-bg: #242120;
+  --approaching-accent: #e0a968;
 
-  --due-bg: #5a3d28;
-  --due-accent: #d88a55;
+  --due-bg: #242120;
+  --due-accent: #e88a5e;
 
-  --danger: #d88a7a;
-  --danger-soft: rgba(216, 138, 122, 0.25);
+  --danger: #e59a88;
+  --danger-soft: rgba(229, 154, 136, 0.2);
 
-  --shadow: 0 1px 2px rgba(0, 0, 0, 0.2), 0 4px 14px rgba(0, 0, 0, 0.25);
+  --shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 4px 14px rgba(0, 0, 0, 0.35);
 }
 
 * {
@@ -184,7 +186,7 @@ h3 {
   display: flex;
   align-items: center;
   gap: 14px;
-  padding: 16px 18px;
+  padding: 16px 18px 16px 22px;
   background: var(--fresh-bg);
   border-radius: var(--radius);
   box-shadow: var(--shadow);
@@ -192,6 +194,28 @@ h3 {
   transition: transform 0.15s ease, background 0.3s ease, border-color 0.3s ease;
   text-align: left;
   width: 100%;
+  overflow: hidden;
+}
+
+/* Left-edge accent — primary signal in dark mode, complementary in light */
+.task::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 10%;
+  bottom: 10%;
+  width: 3px;
+  border-radius: 0 3px 3px 0;
+  background: transparent;
+  transition: background 0.3s ease;
+}
+
+.task.approaching::before {
+  background: var(--approaching-accent);
+}
+
+.task.due::before {
+  background: var(--due-accent);
 }
 
 .task:active {
@@ -210,7 +234,7 @@ h3 {
 
 .task.snoozed {
   background: var(--fresh-bg);
-  opacity: 0.6;
+  opacity: 0.55;
 }
 
 .task.snoozed .task-dot {
