@@ -1,42 +1,20 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import {
+  DAY_MS,
+  makeId,
+  normalizeTask,
+  lastDoneOf,
+  isSnoozed,
+  groupTasks,
+  metaText,
+  shortDate,
+  reorderTasks,
+  seedTasks,
+} from './logic.js';
 
-const DAY_MS = 1000 * 60 * 60 * 24;
 const STORAGE_KEY = 'interval-tracker-v1';
+const THEME_KEY = 'interval-tracker-theme';
 const UNDO_WINDOW_MS = 6000;
-
-const STARTER_TASKS = [
-  { name: 'Laundry', intervalMin: 10, intervalMax: 14 },
-  { name: 'Vacuum', intervalMin: 1, intervalMax: 2 },
-  { name: 'Groceries', intervalMin: 5, intervalMax: 7 },
-  { name: 'Batch cook & freeze meals', intervalMin: 10, intervalMax: 14 },
-  { name: 'Clean litter robot', intervalMin: 3, intervalMax: 5 },
-  { name: 'Take out trash', intervalMin: 5, intervalMax: 7 },
-  { name: 'Wipe down surfaces', intervalMin: 5, intervalMax: 7 },
-  { name: 'Water plants', intervalMin: 5, intervalMax: 7 },
-];
-
-function makeId() {
-  return Math.random().toString(36).slice(2, 10);
-}
-
-function normalizeTask(t, i = 0) {
-  return {
-    id: t.id ?? makeId(),
-    name: t.name ?? 'Untitled',
-    intervalMin: Number(t.intervalMin) || 1,
-    intervalMax: Number(t.intervalMax) || Number(t.intervalMin) || 1,
-    lastDone: Number(t.lastDone) || Date.now(),
-    order: Number.isFinite(t.order) ? t.order : i,
-    snoozedUntil: Number.isFinite(t.snoozedUntil) ? t.snoozedUntil : null,
-  };
-}
-
-function seedTasks() {
-  const now = Date.now();
-  return STARTER_TASKS.map((t, i) =>
-    normalizeTask({ id: makeId(), ...t, lastDone: now, order: i })
-  );
-}
 
 function loadTasks() {
   try {
@@ -58,40 +36,12 @@ function saveTasks(tasks) {
   }
 }
 
-function daysSince(lastDone, now) {
-  return Math.floor((now - lastDone) / DAY_MS);
-}
-
-function isSnoozed(task, now) {
-  return task.snoozedUntil && task.snoozedUntil > now;
-}
-
-function stateFor(task, now) {
-  if (isSnoozed(task, now)) return 'snoozed';
-  const d = daysSince(task.lastDone, now);
-  if (d >= task.intervalMax) return 'due';
-  if (d >= task.intervalMin) return 'approaching';
-  return 'fresh';
-}
-
-function rangeText(task) {
-  if (task.intervalMin === task.intervalMax) return `${task.intervalMin}d`;
-  return `${task.intervalMin}–${task.intervalMax}d`;
-}
-
-function shortDate(ts) {
-  return new Date(ts).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
-}
-
-function metaText(task, now) {
-  if (isSnoozed(task, now)) {
-    return `snoozed until ${shortDate(task.snoozedUntil)} · every ${rangeText(task)}`;
+function loadTheme() {
+  try {
+    return localStorage.getItem(THEME_KEY) || 'auto';
+  } catch {
+    return 'auto';
   }
-  const d = daysSince(task.lastDone, now);
-  const date = shortDate(task.lastDone);
-  if (d === 0) return `done today · every ${rangeText(task)}`;
-  if (d === 1) return `1 day ago · ${date} · every ${rangeText(task)}`;
-  return `${d} days ago · ${date} · every ${rangeText(task)}`;
 }
 
 function prettyDate(d) {
@@ -105,49 +55,60 @@ function prettyDate(d) {
 export default function App() {
   const [tasks, setTasks] = useState(loadTasks);
   const [now, setNow] = useState(() => Date.now());
-  const [modal, setModal] = useState(null); // null | { mode: 'add' } | { mode: 'edit', task } | { mode: 'settings' }
-  const [undo, setUndo] = useState(null); // null | { task: <snapshot>, at: number }
+  const [modal, setModal] = useState(null);
+  const [undo, setUndo] = useState(null);
+  const [theme, setTheme] = useState(loadTheme);
   const undoTimerRef = useRef(null);
 
-  // Persist
+  // Persist tasks
   useEffect(() => {
     saveTasks(tasks);
   }, [tasks]);
 
-  // Refresh "now" each minute so visual states update without reload
+  // Persist + apply theme
+  useEffect(() => {
+    try {
+      localStorage.setItem(THEME_KEY, theme);
+    } catch {
+      /* ignore */
+    }
+    const root = document.documentElement;
+    if (theme === 'auto') {
+      root.removeAttribute('data-theme');
+    } else {
+      root.setAttribute('data-theme', theme);
+    }
+  }, [theme]);
+
+  // Refresh "now" each minute
   useEffect(() => {
     const id = setInterval(() => setNow(Date.now()), 60 * 1000);
     return () => clearInterval(id);
   }, []);
 
-  const grouped = useMemo(() => {
-    const withState = tasks.map((t) => ({ task: t, state: stateFor(t, now) }));
-    const stateOrder = { due: 0, approaching: 1, fresh: 2, snoozed: 3 };
-    withState.sort((a, b) => {
-      if (stateOrder[a.state] !== stateOrder[b.state]) {
-        return stateOrder[a.state] - stateOrder[b.state];
-      }
-      // Within same state: user-defined order, then by recency
-      if (a.task.order !== b.task.order) return a.task.order - b.task.order;
-      return daysSince(b.task.lastDone, now) - daysSince(a.task.lastDone, now);
-    });
-    return {
-      needsAttention: withState.filter((x) => x.state === 'due' || x.state === 'approaching'),
-      resting: withState.filter((x) => x.state === 'fresh'),
-      snoozed: withState.filter((x) => x.state === 'snoozed'),
-    };
-  }, [tasks, now]);
+  const grouped = useMemo(() => groupTasks(tasks, now), [tasks, now]);
 
-  function markDone(id) {
+  function markDoneAt(id, timestamp) {
     const prevTask = tasks.find((t) => t.id === id);
     if (!prevTask) return;
     setTasks((prev) =>
-      prev.map((t) => (t.id === id ? { ...t, lastDone: Date.now(), snoozedUntil: null } : t))
+      prev.map((t) =>
+        t.id === id
+          ? {
+              ...t,
+              history: [...t.history, timestamp].sort((a, b) => a - b),
+              snoozedUntil: null,
+            }
+          : t
+      )
     );
-    // Stage undo
     if (undoTimerRef.current) clearTimeout(undoTimerRef.current);
     setUndo({ task: prevTask, at: Date.now() });
     undoTimerRef.current = setTimeout(() => setUndo(null), UNDO_WINDOW_MS);
+  }
+
+  function markDone(id) {
+    markDoneAt(id, Date.now());
   }
 
   function doUndo() {
@@ -166,7 +127,7 @@ export default function App() {
         name,
         intervalMin,
         intervalMax,
-        lastDone: Date.now(),
+        history: [Date.now()],
         order: prev.length,
       }),
     ]);
@@ -181,22 +142,11 @@ export default function App() {
   }
 
   function moveTask(id, direction) {
-    setTasks((prev) => {
-      const ids = prev.map((t) => t.id);
-      const i = ids.indexOf(id);
-      if (i === -1) return prev;
-      const j = direction === 'up' ? i - 1 : i + 1;
-      if (j < 0 || j >= prev.length) return prev;
-      const copy = [...prev];
-      [copy[i], copy[j]] = [copy[j], copy[i]];
-      // Re-index order
-      return copy.map((t, k) => ({ ...t, order: k }));
-    });
+    setTasks((prev) => reorderTasks(prev, id, direction));
   }
 
   function snoozeTask(id, days) {
-    const until = Date.now() + days * DAY_MS;
-    updateTask(id, { snoozedUntil: until });
+    updateTask(id, { snoozedUntil: Date.now() + days * DAY_MS });
   }
 
   function wakeTask(id) {
@@ -218,8 +168,11 @@ export default function App() {
   function importData(text) {
     const parsed = JSON.parse(text);
     if (!Array.isArray(parsed)) throw new Error('Expected an array of tasks.');
-    const normalized = parsed.map((t, i) => normalizeTask(t, i));
-    setTasks(normalized);
+    setTasks(parsed.map((t, i) => normalizeTask(t, i)));
+  }
+
+  function resetToDefaults() {
+    setTasks(seedTasks());
   }
 
   const currentTask = modal?.task ? tasks.find((t) => t.id === modal.task.id) : null;
@@ -311,6 +264,7 @@ export default function App() {
           mode="edit"
           task={currentTask}
           tasks={tasks}
+          now={now}
           onClose={() => setModal(null)}
           onSave={(data) => {
             updateTask(currentTask.id, data);
@@ -324,15 +278,20 @@ export default function App() {
           onMoveDown={() => moveTask(currentTask.id, 'down')}
           onSnooze={(days) => snoozeTask(currentTask.id, days)}
           onWake={() => wakeTask(currentTask.id)}
-          now={now}
+          onMarkDoneDaysAgo={(daysAgo) =>
+            markDoneAt(currentTask.id, Date.now() - daysAgo * DAY_MS)
+          }
         />
       )}
 
       {modal?.mode === 'settings' && (
         <SettingsModal
+          theme={theme}
           onClose={() => setModal(null)}
           onExport={exportData}
           onImport={importData}
+          onReset={resetToDefaults}
+          onThemeChange={setTheme}
         />
       )}
     </div>
@@ -391,6 +350,7 @@ function TaskModal({
   mode,
   task,
   tasks = [],
+  now = Date.now(),
   onClose,
   onSave,
   onDelete,
@@ -398,17 +358,18 @@ function TaskModal({
   onMoveDown,
   onSnooze,
   onWake,
-  now,
+  onMarkDoneDaysAgo,
 }) {
   const [name, setName] = useState(task?.name ?? '');
   const [min, setMin] = useState(task?.intervalMin ?? 7);
   const [max, setMax] = useState(task?.intervalMax ?? 10);
   const [error, setError] = useState('');
+  const [confirmDelete, setConfirmDelete] = useState(false);
 
   const taskIndex = task ? tasks.findIndex((t) => t.id === task.id) : -1;
   const canMoveUp = taskIndex > 0;
   const canMoveDown = taskIndex >= 0 && taskIndex < tasks.length - 1;
-  const snoozed = task && isSnoozed(task, now ?? Date.now());
+  const snoozed = task && isSnoozed(task, now);
 
   function handleSubmit(e) {
     e.preventDefault();
@@ -420,6 +381,8 @@ function TaskModal({
     if (!Number.isFinite(maxN) || maxN < minN) return setError('Max must be ≥ min.');
     onSave({ name: trimmed, intervalMin: minN, intervalMax: maxN });
   }
+
+  const recent = task ? [...task.history].slice(-6).reverse() : [];
 
   return (
     <div className="modal-backdrop" onClick={onClose}>
@@ -459,7 +422,7 @@ function TaskModal({
         </div>
         <div className="hint">Soft cadence — e.g. every 5–7 days.</div>
 
-        {error && <div className="hint" style={{ color: '#a85a4a' }}>{error}</div>}
+        {error && <div className="hint" style={{ color: 'var(--danger)' }}>{error}</div>}
 
         <div className="modal-actions" style={{ marginTop: 18 }}>
           <button type="button" className="btn btn-secondary" onClick={onClose}>
@@ -472,6 +435,58 @@ function TaskModal({
 
         {mode === 'edit' && (
           <>
+            <div className="divider" />
+
+            <div className="subsection-label">Mark done</div>
+            <div className="modal-actions">
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={() => onMarkDoneDaysAgo(0)}
+              >
+                Today
+              </button>
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={() => onMarkDoneDaysAgo(1)}
+              >
+                Yesterday
+              </button>
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={() => onMarkDoneDaysAgo(2)}
+              >
+                2d ago
+              </button>
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={() => onMarkDoneDaysAgo(3)}
+              >
+                3d ago
+              </button>
+            </div>
+
+            <div className="subsection-label" style={{ marginTop: 14 }}>
+              History ({task.history.length})
+            </div>
+            {recent.length === 0 ? (
+              <div className="hint">No completions yet.</div>
+            ) : (
+              <div className="history-list">
+                {recent.map((ts, idx) => (
+                  <span key={ts + '-' + idx} className="history-chip">
+                    {shortDate(ts)}
+                  </span>
+                ))}
+                {task.history.length > recent.length && (
+                  <span className="history-more">+{task.history.length - recent.length} more</span>
+                )}
+              </div>
+            )}
+
             <div className="divider" />
 
             <div className="subsection-label">Order</div>
@@ -494,7 +509,9 @@ function TaskModal({
               </button>
             </div>
 
-            <div className="subsection-label">Snooze</div>
+            <div className="subsection-label" style={{ marginTop: 14 }}>
+              Snooze
+            </div>
             {snoozed ? (
               <div className="modal-actions">
                 <button type="button" className="btn btn-secondary" onClick={onWake}>
@@ -529,17 +546,30 @@ function TaskModal({
 
             <div className="divider" />
 
-            <div className="modal-actions">
-              <button
-                type="button"
-                className="btn btn-danger"
-                onClick={() => {
-                  if (confirm(`Delete "${task.name}"?`)) onDelete();
-                }}
-              >
-                Delete task
-              </button>
-            </div>
+            {confirmDelete ? (
+              <div className="modal-actions">
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  onClick={() => setConfirmDelete(false)}
+                >
+                  Keep
+                </button>
+                <button type="button" className="btn btn-danger" onClick={onDelete}>
+                  Delete “{task.name}”
+                </button>
+              </div>
+            ) : (
+              <div className="modal-actions">
+                <button
+                  type="button"
+                  className="btn btn-danger"
+                  onClick={() => setConfirmDelete(true)}
+                >
+                  Delete task
+                </button>
+              </div>
+            )}
           </>
         )}
       </form>
@@ -547,8 +577,9 @@ function TaskModal({
   );
 }
 
-function SettingsModal({ onClose, onExport, onImport }) {
+function SettingsModal({ theme, onClose, onExport, onImport, onReset, onThemeChange }) {
   const [importError, setImportError] = useState('');
+  const [confirmReset, setConfirmReset] = useState(false);
   const fileRef = useRef(null);
 
   function handleImportFile(e) {
@@ -572,6 +603,22 @@ function SettingsModal({ onClose, onExport, onImport }) {
       <div className="modal" onClick={(e) => e.stopPropagation()}>
         <h2>Settings</h2>
 
+        <div className="subsection-label">Theme</div>
+        <div className="theme-picker">
+          {['auto', 'light', 'dark'].map((t) => (
+            <button
+              key={t}
+              type="button"
+              className={`theme-option ${theme === t ? 'active' : ''}`}
+              onClick={() => onThemeChange(t)}
+            >
+              {t[0].toUpperCase() + t.slice(1)}
+            </button>
+          ))}
+        </div>
+
+        <div className="divider" />
+
         <div className="subsection-label">Backup</div>
         <div className="modal-actions">
           <button type="button" className="btn btn-secondary" onClick={onExport}>
@@ -592,12 +639,46 @@ function SettingsModal({ onClose, onExport, onImport }) {
             style={{ display: 'none' }}
           />
         </div>
-        <div className="hint">
-          Export downloads a JSON file of every task. Import replaces all current tasks.
-        </div>
+        <div className="hint">Import replaces all current tasks.</div>
         {importError && (
-          <div className="hint" style={{ color: '#a85a4a' }}>
+          <div className="hint" style={{ color: 'var(--danger)' }}>
             {importError}
+          </div>
+        )}
+
+        <div className="divider" />
+
+        <div className="subsection-label">Reset</div>
+        {confirmReset ? (
+          <div className="modal-actions">
+            <button
+              type="button"
+              className="btn btn-secondary"
+              onClick={() => setConfirmReset(false)}
+            >
+              Keep my tasks
+            </button>
+            <button
+              type="button"
+              className="btn btn-danger"
+              onClick={() => {
+                onReset();
+                setConfirmReset(false);
+                onClose();
+              }}
+            >
+              Reset to defaults
+            </button>
+          </div>
+        ) : (
+          <div className="modal-actions">
+            <button
+              type="button"
+              className="btn btn-danger"
+              onClick={() => setConfirmReset(true)}
+            >
+              Reset to starter tasks
+            </button>
           </div>
         )}
 
