@@ -9,6 +9,8 @@ import {
   metaText,
   groupTasks,
   reorderTasks,
+  completionStats,
+  listSummary,
 } from './logic.js';
 
 const now = new Date('2026-04-13T12:00:00Z').getTime();
@@ -151,7 +153,66 @@ describe('isSnoozed / daysSince', () => {
     expect(isSnoozed(t({ snoozedUntil: null }), now)).toBe(false);
   });
 
-  it('daysSince floors to whole days', () => {
-    expect(daysSince(now - DAY_MS - 5000, now)).toBe(1);
+  it('daysSince counts calendar days, not 24h blocks', () => {
+    // Same local day → 0
+    expect(daysSince(now - 1000, now)).toBe(0);
+    // One calendar day apart (a bit less than 24h can still be "yesterday")
+    expect(daysSince(now - DAY_MS + 1000, now)).toBe(1);
+    // Five days ago
+    expect(daysSince(now - 5 * DAY_MS, now)).toBe(5);
+  });
+});
+
+describe('completionStats', () => {
+  it('returns null avg for single completion', () => {
+    const task = t({ history: [now] });
+    expect(completionStats(task)).toEqual({ count: 1, avgDays: null });
+  });
+
+  it('averages the gaps between completions', () => {
+    const task = t({
+      history: [now - 20 * DAY_MS, now - 15 * DAY_MS, now - 10 * DAY_MS, now - 5 * DAY_MS],
+    });
+    const s = completionStats(task);
+    expect(s.count).toBe(4);
+    expect(s.avgDays).toBe(5);
+  });
+});
+
+describe('listSummary', () => {
+  it('says everything is resting when empty', () => {
+    expect(listSummary({ needsAttention: [], resting: [], snoozed: [] })).toMatch(/resting/);
+  });
+
+  it('counts attention items', () => {
+    expect(
+      listSummary({ needsAttention: [{}, {}, {}], resting: [], snoozed: [] })
+    ).toMatch(/3 things/);
+  });
+
+  it('uses singular for one', () => {
+    expect(
+      listSummary({ needsAttention: [{}], resting: [], snoozed: [] })
+    ).toMatch(/1 thing/);
+  });
+
+  it('mentions snoozed when relevant', () => {
+    expect(
+      listSummary({ needsAttention: [{}], resting: [], snoozed: [{}] })
+    ).toMatch(/snoozed/);
+  });
+});
+
+describe('normalizeTask notes', () => {
+  it('defaults notes to empty string', () => {
+    expect(normalizeTask({ name: 'x' }).notes).toBe('');
+  });
+
+  it('preserves string notes', () => {
+    expect(normalizeTask({ name: 'x', notes: 'in the cupboard' }).notes).toBe('in the cupboard');
+  });
+
+  it('ignores non-string notes', () => {
+    expect(normalizeTask({ name: 'x', notes: 123 }).notes).toBe('');
   });
 });

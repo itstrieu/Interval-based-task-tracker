@@ -22,6 +22,7 @@ export function normalizeTask(t, i = 0) {
       Math.max(1, Number(t.intervalMin) || 1),
       Number(t.intervalMax) || Number(t.intervalMin) || 1
     ),
+    notes: typeof t.notes === 'string' ? t.notes : '',
     history,
     order: Number.isFinite(t.order) ? t.order : i,
     snoozedUntil: Number.isFinite(t.snoozedUntil) ? t.snoozedUntil : null,
@@ -32,8 +33,17 @@ export function lastDoneOf(task) {
   return task.history[task.history.length - 1] ?? Date.now();
 }
 
+/** Zero out to local midnight. */
+function startOfDay(ts) {
+  const d = new Date(ts);
+  d.setHours(0, 0, 0, 0);
+  return d.getTime();
+}
+
+/** Calendar-day difference between two timestamps in local time.
+ *  e.g. lastDone at 11pm yesterday, now 8am today -> 1 (not 0). */
 export function daysSince(ts, now) {
-  return Math.floor((now - ts) / DAY_MS);
+  return Math.round((startOfDay(now) - startOfDay(ts)) / DAY_MS);
 }
 
 export function isSnoozed(task, now) {
@@ -67,6 +77,31 @@ export function metaText(task, now) {
   if (d === 0) return `done today · every ${rangeText(task)}`;
   if (d === 1) return `1 day ago · ${date} · every ${rangeText(task)}`;
   return `${d} days ago · ${date} · every ${rangeText(task)}`;
+}
+
+/** Stats about a task's completion history — purely descriptive. */
+export function completionStats(task) {
+  const h = task.history || [];
+  if (h.length < 2) {
+    return { count: h.length, avgDays: null };
+  }
+  const gaps = [];
+  for (let i = 1; i < h.length; i++) {
+    gaps.push((h[i] - h[i - 1]) / DAY_MS);
+  }
+  const avg = gaps.reduce((a, b) => a + b, 0) / gaps.length;
+  return { count: h.length, avgDays: Math.round(avg * 10) / 10 };
+}
+
+/** Plain-English summary of the whole list. */
+export function listSummary(groups) {
+  const n = groups.needsAttention.length;
+  const s = groups.snoozed.length;
+  if (n === 0 && s === 0) return 'Everything is resting.';
+  if (n === 0) return 'Nothing needs attention today.';
+  const thing = n === 1 ? 'thing' : 'things';
+  const attn = `${n} ${thing} could use attention`;
+  return s > 0 ? `${attn} · ${s} snoozed` : attn;
 }
 
 export function groupTasks(tasks, now) {

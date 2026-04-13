@@ -10,6 +10,8 @@ import {
   shortDate,
   reorderTasks,
   seedTasks,
+  completionStats,
+  listSummary,
 } from './logic.js';
 
 const STORAGE_KEY = 'interval-tracker-v1';
@@ -119,7 +121,7 @@ export default function App() {
     if (undoTimerRef.current) clearTimeout(undoTimerRef.current);
   }
 
-  function addTask({ name, intervalMin, intervalMax }) {
+  function addTask({ name, intervalMin, intervalMax, notes }) {
     setTasks((prev) => [
       ...prev,
       normalizeTask({
@@ -127,6 +129,7 @@ export default function App() {
         name,
         intervalMin,
         intervalMax,
+        notes,
         history: [Date.now()],
         order: prev.length,
       }),
@@ -183,6 +186,7 @@ export default function App() {
         <div>
           <h1>Today</h1>
           <span className="date">{prettyDate(new Date(now))}</span>
+          <span className="summary">{listSummary(grouped)}</span>
         </div>
         <button
           className="icon-button"
@@ -205,8 +209,10 @@ export default function App() {
           <TaskList
             items={grouped.needsAttention}
             now={now}
+            showQuickSnooze
             onDone={markDone}
             onEdit={(task) => setModal({ mode: 'edit', task })}
+            onQuickSnooze={(id) => snoozeTask(id, 1)}
           />
         </>
       )}
@@ -298,7 +304,7 @@ export default function App() {
   );
 }
 
-function TaskList({ items, now, onDone, onEdit }) {
+function TaskList({ items, now, onDone, onEdit, onQuickSnooze, showQuickSnooze }) {
   return (
     <div className="task-list">
       {items.map(({ task, state }) => (
@@ -307,24 +313,49 @@ function TaskList({ items, now, onDone, onEdit }) {
           task={task}
           state={state}
           now={now}
+          showQuickSnooze={showQuickSnooze}
           onDone={() => onDone(task.id)}
           onEdit={() => onEdit(task)}
+          onQuickSnooze={onQuickSnooze ? () => onQuickSnooze(task.id) : null}
         />
       ))}
     </div>
   );
 }
 
-function TaskRow({ task, state, now, onDone, onEdit }) {
+function TaskRow({ task, state, now, onDone, onEdit, onQuickSnooze, showQuickSnooze }) {
   return (
     <button className={`task ${state}`} onClick={onDone} aria-label={`Mark ${task.name} done`}>
       <span className="task-dot" aria-hidden="true" />
       <span className="task-body">
         <div className="task-name">{task.name}</div>
         <div className="task-meta">{metaText(task, now)}</div>
+        {task.notes && <div className="task-notes">{task.notes}</div>}
       </span>
+      {showQuickSnooze && onQuickSnooze && (
+        <span
+          className="task-action"
+          role="button"
+          tabIndex={0}
+          onClick={(e) => {
+            e.stopPropagation();
+            onQuickSnooze();
+          }}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+              e.preventDefault();
+              e.stopPropagation();
+              onQuickSnooze();
+            }
+          }}
+          aria-label={`Snooze ${task.name} 1 day`}
+          title="Snooze 1 day"
+        >
+          zzz
+        </span>
+      )}
       <span
-        className="task-edit"
+        className="task-action"
         role="button"
         tabIndex={0}
         onClick={(e) => {
@@ -363,6 +394,7 @@ function TaskModal({
   const [name, setName] = useState(task?.name ?? '');
   const [min, setMin] = useState(task?.intervalMin ?? 7);
   const [max, setMax] = useState(task?.intervalMax ?? 10);
+  const [notes, setNotes] = useState(task?.notes ?? '');
   const [error, setError] = useState('');
   const [confirmDelete, setConfirmDelete] = useState(false);
 
@@ -379,10 +411,11 @@ function TaskModal({
     const maxN = Number(max);
     if (!Number.isFinite(minN) || minN < 1) return setError('Min must be 1 or more.');
     if (!Number.isFinite(maxN) || maxN < minN) return setError('Max must be ≥ min.');
-    onSave({ name: trimmed, intervalMin: minN, intervalMax: maxN });
+    onSave({ name: trimmed, intervalMin: minN, intervalMax: maxN, notes: notes.trim() });
   }
 
   const recent = task ? [...task.history].slice(-6).reverse() : [];
+  const stats = task ? completionStats(task) : null;
 
   return (
     <div className="modal-backdrop" onClick={onClose}>
@@ -421,6 +454,16 @@ function TaskModal({
           </div>
         </div>
         <div className="hint">Soft cadence — e.g. every 5–7 days.</div>
+
+        <div className="field" style={{ marginTop: 16 }}>
+          <label>Notes (optional)</label>
+          <textarea
+            value={notes}
+            onChange={(e) => setNotes(e.target.value)}
+            placeholder="Anything that helps — supplies, which cupboard, etc."
+            rows={2}
+          />
+        </div>
 
         {error && <div className="hint" style={{ color: 'var(--danger)' }}>{error}</div>}
 
@@ -470,8 +513,19 @@ function TaskModal({
             </div>
 
             <div className="subsection-label" style={{ marginTop: 14 }}>
-              History ({task.history.length})
+              History
             </div>
+            {stats && stats.avgDays != null && (
+              <div className="hint" style={{ marginBottom: 8 }}>
+                {stats.count} completions · roughly every {stats.avgDays} day
+                {stats.avgDays === 1 ? '' : 's'}
+              </div>
+            )}
+            {stats && stats.avgDays == null && stats.count > 0 && (
+              <div className="hint" style={{ marginBottom: 8 }}>
+                {stats.count} completion{stats.count === 1 ? '' : 's'} so far
+              </div>
+            )}
             {recent.length === 0 ? (
               <div className="hint">No completions yet.</div>
             ) : (
