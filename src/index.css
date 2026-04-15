@@ -570,6 +570,16 @@ h3 {
   }
 }
 
+.toast.toast-soft {
+  background: var(--approaching-bg);
+  color: var(--ink);
+  border: 1px solid rgba(201, 146, 74, 0.3);
+}
+
+.toast.toast-soft .toast-action {
+  color: var(--approaching-accent);
+}
+
 .toast-action {
   color: var(--approaching-accent);
   font-weight: 600;

@@ -60,7 +60,10 @@ export default function App() {
   const [modal, setModal] = useState(null);
   const [undo, setUndo] = useState(null);
   const [theme, setTheme] = useState(loadTheme);
+  const [justDue, setJustDue] = useState(null); // { names: string[], at: number }
   const undoTimerRef = useRef(null);
+  const justDueTimerRef = useRef(null);
+  const prevAttentionIdsRef = useRef(null);
 
   // Persist tasks
   useEffect(() => {
@@ -89,6 +92,26 @@ export default function App() {
   }, []);
 
   const grouped = useMemo(() => groupTasks(tasks, now), [tasks, now]);
+
+  // When tasks transition INTO the needs-attention set (usually because
+  // the minute-tick crosses midnight / min-interval), show a gentle
+  // in-app banner. Calm, not a push notification.
+  useEffect(() => {
+    const currentIds = new Set(grouped.needsAttention.map((x) => x.task.id));
+    const prev = prevAttentionIdsRef.current;
+    if (prev !== null) {
+      const newly = [...currentIds].filter((id) => !prev.has(id));
+      if (newly.length > 0) {
+        const names = newly
+          .map((id) => tasks.find((t) => t.id === id)?.name)
+          .filter(Boolean);
+        setJustDue({ names, at: Date.now() });
+        if (justDueTimerRef.current) clearTimeout(justDueTimerRef.current);
+        justDueTimerRef.current = setTimeout(() => setJustDue(null), 8000);
+      }
+    }
+    prevAttentionIdsRef.current = currentIds;
+  }, [grouped, tasks]);
 
   function markDoneAt(id, timestamp) {
     const prevTask = tasks.find((t) => t.id === id);
@@ -250,6 +273,19 @@ export default function App() {
           <span>Marked “{undo.task.name}” done</span>
           <button className="toast-action" onClick={doUndo}>
             Undo
+          </button>
+        </div>
+      )}
+
+      {!undo && justDue && (
+        <div className="toast toast-soft" role="status">
+          <span>
+            {justDue.names.length === 1
+              ? `“${justDue.names[0]}” could use attention`
+              : `${justDue.names.length} things now want attention`}
+          </span>
+          <button className="toast-action" onClick={() => setJustDue(null)}>
+            OK
           </button>
         </div>
       )}
