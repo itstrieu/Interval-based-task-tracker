@@ -16,6 +16,9 @@
   --due-bg: #f1d0b3;
   --due-accent: #a86a3d;
 
+  --snooze-bg: #e6ddc9;
+  --snooze-accent: #8a7f6a;
+
   --danger: #a85a4a;
   --danger-soft: rgba(168, 90, 74, 0.25);
 
@@ -25,9 +28,7 @@
   --radius-sm: 10px;
 }
 
-/* Warm dark palette — inspired by candlelight, not mud.
-   Cards share one surface; urgency is shown by accent dots and a
-   subtle left stripe (see .task rules below), not by tinted backgrounds. */
+/* Warm dark palette — candlelight, not mud. */
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme='light']) {
     --bg: #1a1715;
@@ -45,6 +46,9 @@
 
     --due-bg: #242120;
     --due-accent: #e88a5e;
+
+    --snooze-bg: #1e1c1a;
+    --snooze-accent: #806e5b;
 
     --danger: #e59a88;
     --danger-soft: rgba(229, 154, 136, 0.2);
@@ -70,6 +74,9 @@
   --due-bg: #242120;
   --due-accent: #e88a5e;
 
+  --snooze-bg: #1e1c1a;
+  --snooze-accent: #806e5b;
+
   --danger: #e59a88;
   --danger-soft: rgba(229, 154, 136, 0.2);
 
@@ -92,6 +99,7 @@ body {
   min-height: 100vh;
   min-height: 100dvh;
   transition: background 0.2s ease, color 0.2s ease;
+  overscroll-behavior-y: none;
 }
 
 body {
@@ -107,7 +115,8 @@ button {
   color: inherit;
 }
 
-input {
+input,
+textarea {
   font-family: inherit;
   color: inherit;
 }
@@ -123,21 +132,37 @@ h3 {
 .app {
   max-width: 560px;
   margin: 0 auto;
-  padding: 28px 20px 120px;
+  padding: 20px 20px 60px;
 }
 
+/* Sticky header */
 .header {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
   gap: 12px;
-  margin-bottom: 24px;
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  background: color-mix(in srgb, var(--bg) 92%, transparent);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  margin: 0 -20px 20px;
+  padding: 16px 20px 14px;
+  border-bottom: 1px solid transparent;
+  transition: border-color 0.2s ease;
+}
+
+.header-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
 }
 
 .header h1 {
-  font-size: 28px;
-  letter-spacing: -0.01em;
-  line-height: 1.1;
+  font-size: 32px;
+  letter-spacing: -0.015em;
+  line-height: 1.05;
 }
 
 .header .date {
@@ -150,7 +175,7 @@ h3 {
 
 .header .summary {
   display: block;
-  font-size: 13px;
+  font-size: 14px;
   color: var(--ink-soft);
   margin-top: 6px;
   font-family: 'Fraunces', Georgia, serif;
@@ -159,11 +184,11 @@ h3 {
 }
 
 .icon-button {
-  width: 38px;
-  height: 38px;
+  width: 40px;
+  height: 40px;
   border-radius: 50%;
   color: var(--ink-soft);
-  font-size: 16px;
+  font-size: 17px;
   letter-spacing: 0.05em;
   display: flex;
   align-items: center;
@@ -176,13 +201,101 @@ h3 {
   background: rgba(128, 128, 128, 0.08);
 }
 
+/* Hint card — shown until dismissed */
+.hint-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 14px;
+  background: var(--bg-soft);
+  color: var(--ink-soft);
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+  margin-bottom: 14px;
+  font-style: italic;
+}
+
+.hint-card button {
+  color: var(--ink-faint);
+  font-size: 14px;
+  padding: 4px 8px;
+  border-radius: 6px;
+}
+
+.hint-card button:hover {
+  color: var(--ink);
+  background: rgba(128, 128, 128, 0.08);
+}
+
+/* Quick-add */
+.quick-add {
+  position: relative;
+  margin-bottom: 22px;
+}
+
+.quick-add input {
+  width: 100%;
+  padding: 14px 44px 14px 18px;
+  background: var(--fresh-bg);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  font-size: 15px;
+  outline: none;
+  transition: border-color 0.15s ease, background 0.15s ease;
+  box-shadow: var(--shadow);
+}
+
+.quick-add input::placeholder {
+  color: var(--ink-faint);
+  font-style: italic;
+}
+
+.quick-add input:focus {
+  border-color: var(--approaching-accent);
+}
+
+.quick-add-submit {
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  background: var(--ink);
+  color: var(--bg);
+  font-size: 15px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  animation: fade 0.15s ease;
+}
+
+/* Section labels */
 .section-label {
   font-size: 11px;
-  letter-spacing: 0.14em;
+  letter-spacing: 0.16em;
   text-transform: uppercase;
   color: var(--ink-faint);
-  margin: 20px 4px 10px;
+  margin: 24px 4px 12px;
   font-weight: 600;
+}
+
+.section-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 0;
+  background: none;
+  text-align: left;
+  cursor: pointer;
+}
+
+.section-caret {
+  font-size: 12px;
+  color: var(--ink-faint);
 }
 
 .task-list {
@@ -191,23 +304,58 @@ h3 {
   gap: 10px;
 }
 
+/* Task row is a container that holds the card + a swipe-action pane */
+.task-row {
+  position: relative;
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+
+.task-swipe-pane {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  padding-right: 22px;
+  background: var(--snooze-bg);
+  color: var(--snooze-accent);
+  border-radius: var(--radius);
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  transition: background 0.2s ease, color 0.2s ease;
+}
+
+.task-swipe-pane.committed {
+  background: var(--approaching-accent);
+  color: #fff;
+}
+
 .task {
   position: relative;
   display: flex;
   align-items: center;
   gap: 14px;
-  padding: 16px 18px 16px 22px;
+  padding: 18px 20px 18px 24px;
   background: var(--fresh-bg);
   border-radius: var(--radius);
   box-shadow: var(--shadow);
   border: 1px solid transparent;
-  transition: transform 0.15s ease, background 0.3s ease, border-color 0.3s ease;
   text-align: left;
   width: 100%;
-  overflow: hidden;
+  touch-action: pan-y; /* allow vertical scroll, we handle horizontal */
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-tap-highlight-color: transparent;
+  cursor: pointer;
 }
 
-/* Left-edge accent — primary signal in dark mode, complementary in light */
+.task:active {
+  transform: scale(0.99);
+}
+
 .task::before {
   content: '';
   position: absolute;
@@ -228,10 +376,6 @@ h3 {
   background: var(--due-accent);
 }
 
-.task:active {
-  transform: scale(0.985);
-}
-
 .task.approaching {
   background: var(--approaching-bg);
   border-color: rgba(201, 146, 74, 0.18);
@@ -249,6 +393,11 @@ h3 {
 
 .task.snoozed .task-dot {
   background: var(--ink-faint);
+}
+
+.task:focus-visible {
+  outline: 2px solid var(--approaching-accent);
+  outline-offset: 2px;
 }
 
 .task-dot {
@@ -273,38 +422,26 @@ h3 {
 }
 
 .task-name {
-  font-size: 17px;
+  font-size: 18px;
   font-weight: 500;
   color: var(--ink);
   line-height: 1.3;
+  letter-spacing: -0.005em;
 }
 
 .task-meta {
-  font-size: 13px;
-  color: var(--ink-soft);
-  margin-top: 3px;
+  font-size: 12px;
+  color: var(--ink-faint);
+  margin-top: 4px;
   font-style: italic;
 }
 
 .task-notes {
   font-size: 13px;
-  color: var(--ink-faint);
-  margin-top: 4px;
-  line-height: 1.35;
-  white-space: pre-wrap;
-}
-
-.task-action {
-  padding: 6px 8px;
-  border-radius: 8px;
-  color: var(--ink-faint);
-  font-size: 13px;
-  transition: color 0.15s ease, background 0.15s ease;
-}
-
-.task-action:hover {
   color: var(--ink-soft);
-  background: rgba(128, 128, 128, 0.08);
+  margin-top: 6px;
+  line-height: 1.4;
+  white-space: pre-wrap;
 }
 
 .empty {
@@ -314,24 +451,24 @@ h3 {
   font-style: italic;
 }
 
-.add-button {
-  position: fixed;
-  bottom: calc(24px + env(safe-area-inset-bottom));
-  left: 50%;
-  transform: translateX(-50%);
-  background: var(--ink);
-  color: var(--bg);
-  padding: 14px 24px;
-  border-radius: 999px;
+.calm-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 32px 20px;
+  text-align: center;
+  color: var(--ink-soft);
+  font-family: 'Fraunces', Georgia, serif;
+  font-style: italic;
   font-size: 15px;
-  font-weight: 500;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
-  transition: transform 0.15s ease;
-  z-index: 20;
 }
 
-.add-button:active {
-  transform: translateX(-50%) scale(0.96);
+.calm-state-glyph {
+  font-size: 28px;
+  color: var(--fresh-accent);
+  line-height: 1;
+  font-family: 'Fraunces', Georgia, serif;
 }
 
 /* Modal */
@@ -547,7 +684,7 @@ h3 {
 .toast {
   position: fixed;
   left: 50%;
-  bottom: calc(88px + env(safe-area-inset-bottom));
+  bottom: calc(24px + env(safe-area-inset-bottom));
   transform: translateX(-50%);
   background: var(--ink);
   color: var(--bg);
@@ -591,4 +728,62 @@ h3 {
 
 .toast-action:hover {
   background: rgba(255, 255, 255, 0.08);
+}
+
+/* Celebration — a brief, quiet moment when all attention tasks are done */
+.celebration {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  pointer-events: none;
+  z-index: 40;
+  color: var(--ink-soft);
+  font-family: 'Fraunces', Georgia, serif;
+  font-style: italic;
+  font-size: 18px;
+  animation: celebrate 3.5s ease forwards;
+}
+
+.celebration-glyph {
+  font-size: 42px;
+  color: var(--approaching-accent);
+  line-height: 1;
+  animation: glyph-pulse 1.4s ease;
+}
+
+@keyframes celebrate {
+  0% {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  12% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  80% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+}
+
+@keyframes glyph-pulse {
+  0% {
+    transform: scale(0.6);
+    opacity: 0.4;
+  }
+  45% {
+    transform: scale(1.15);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
 }

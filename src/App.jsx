@@ -13,9 +13,11 @@ import {
   completionStats,
   listSummary,
 } from './logic.js';
+import { useGestures } from './useGestures.js';
 
 const STORAGE_KEY = 'interval-tracker-v1';
 const THEME_KEY = 'interval-tracker-theme';
+const HINT_KEY = 'interval-tracker-hint-dismissed';
 const UNDO_WINDOW_MS = 6000;
 
 function loadTasks() {
@@ -46,6 +48,14 @@ function loadTheme() {
   }
 }
 
+function loadHintDismissed() {
+  try {
+    return localStorage.getItem(HINT_KEY) === '1';
+  } catch {
+    return false;
+  }
+}
+
 function prettyDate(d) {
   return d.toLocaleDateString(undefined, {
     weekday: 'long',
@@ -60,17 +70,19 @@ export default function App() {
   const [modal, setModal] = useState(null);
   const [undo, setUndo] = useState(null);
   const [theme, setTheme] = useState(loadTheme);
-  const [justDue, setJustDue] = useState(null); // { names: string[], at: number }
+  const [hintDismissed, setHintDismissed] = useState(loadHintDismissed);
+  const [snoozedCollapsed, setSnoozedCollapsed] = useState(true);
+  const [celebration, setCelebration] = useState(null);
+  const [justDue, setJustDue] = useState(null);
   const undoTimerRef = useRef(null);
   const justDueTimerRef = useRef(null);
+  const celebrationTimerRef = useRef(null);
   const prevAttentionIdsRef = useRef(null);
 
-  // Persist tasks
   useEffect(() => {
     saveTasks(tasks);
   }, [tasks]);
 
-  // Persist + apply theme
   useEffect(() => {
     try {
       localStorage.setItem(THEME_KEY, theme);
@@ -85,7 +97,6 @@ export default function App() {
     }
   }, [theme]);
 
-  // Refresh "now" each minute
   useEffect(() => {
     const id = setInterval(() => setNow(Date.now()), 60 * 1000);
     return () => clearInterval(id);
@@ -93,9 +104,7 @@ export default function App() {
 
   const grouped = useMemo(() => groupTasks(tasks, now), [tasks, now]);
 
-  // When tasks transition INTO the needs-attention set (usually because
-  // the minute-tick crosses midnight / min-interval), show a gentle
-  // in-app banner. Calm, not a push notification.
+  // Detect transitions into and out of the attention set.
   useEffect(() => {
     const currentIds = new Set(grouped.needsAttention.map((x) => x.task.id));
     const prev = prevAttentionIdsRef.current;
@@ -109,9 +118,16 @@ export default function App() {
         if (justDueTimerRef.current) clearTimeout(justDueTimerRef.current);
         justDueTimerRef.current = setTimeout(() => setJustDue(null), 8000);
       }
+      // Celebration: count dropped from >0 to 0
+      if (prev.size > 0 && currentIds.size === 0 && tasks.length > 0) {
+        setCelebration(Date.now());
+        if (celebrationTimerRef.current) clearTimeout(celebrationTimerRef.current);
+        celebrationTimerRef.current = setTimeout(() => setCelebration(null), 3500);
+      }
     }
     prevAttentionIdsRef.current = currentIds;
-  }, [grouped, tasks]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [grouped]);
 
   function markDoneAt(id, timestamp) {
     const prevTask = tasks.find((t) => t.id === id);
@@ -159,6 +175,13 @@ export default function App() {
     ]);
   }
 
+  function quickAdd(name) {
+    const trimmed = name.trim();
+    if (!trimmed) return false;
+    addTask({ name: trimmed, intervalMin: 7, intervalMax: 10, notes: '' });
+    return true;
+  }
+
   function updateTask(id, patch) {
     setTasks((prev) => prev.map((t) => (t.id === id ? { ...t, ...patch } : t)));
   }
@@ -201,12 +224,26 @@ export default function App() {
     setTasks(seedTasks());
   }
 
+  function dismissHint() {
+    try {
+      localStorage.setItem(HINT_KEY, '1');
+    } catch {
+      /* ignore */
+    }
+    setHintDismissed(true);
+  }
+
   const currentTask = modal?.task ? tasks.find((t) => t.id === modal.task.id) : null;
+  const allResting = grouped.needsAttention.length === 0 && grouped.resting.length > 0;
+  const nothingAtAll =
+    grouped.needsAttention.length === 0 &&
+    grouped.resting.length === 0 &&
+    grouped.snoozed.length === 0;
 
   return (
     <div className="app">
       <header className="header">
-        <div>
+        <div className="header-text">
           <h1>Today</h1>
           <span className="date">{prettyDate(new Date(now))}</span>
           <span className="summary">{listSummary(grouped)}</span>
@@ -220,11 +257,18 @@ export default function App() {
         </button>
       </header>
 
-      {grouped.needsAttention.length === 0 &&
-        grouped.resting.length === 0 &&
-        grouped.snoozed.length === 0 && (
-          <div className="empty">No tasks yet. Add one below.</div>
-        )}
+      {!hintDismissed && tasks.length > 0 && (
+        <div className="hint-card" role="note">
+          <span>Tap to complete · swipe left to snooze · hold to edit.</span>
+          <button onClick={dismissHint} aria-label="Dismiss hint">
+            ✕
+          </button>
+        </div>
+      )}
+
+      <QuickAdd onAdd={quickAdd} />
+
+      {nothingAtAll && <div className="empty">No tasks yet. Add one above.</div>}
 
       {grouped.needsAttention.length > 0 && (
         <>
@@ -232,12 +276,18 @@ export default function App() {
           <TaskList
             items={grouped.needsAttention}
             now={now}
-            showQuickSnooze
             onDone={markDone}
             onEdit={(task) => setModal({ mode: 'edit', task })}
-            onQuickSnooze={(id) => snoozeTask(id, 1)}
+            onSnooze={(id) => snoozeTask(id, 1)}
           />
         </>
+      )}
+
+      {allResting && (
+        <div className="calm-state" aria-live="polite">
+          <span className="calm-state-glyph" aria-hidden="true">·</span>
+          <span>Nice — nothing's pressing right now.</span>
+        </div>
       )}
 
       {grouped.resting.length > 0 && (
@@ -248,25 +298,32 @@ export default function App() {
             now={now}
             onDone={markDone}
             onEdit={(task) => setModal({ mode: 'edit', task })}
+            onSnooze={(id) => snoozeTask(id, 1)}
           />
         </>
       )}
 
       {grouped.snoozed.length > 0 && (
         <>
-          <div className="section-label">Snoozed</div>
-          <TaskList
-            items={grouped.snoozed}
-            now={now}
-            onDone={markDone}
-            onEdit={(task) => setModal({ mode: 'edit', task })}
-          />
+          <button
+            className="section-label section-toggle"
+            onClick={() => setSnoozedCollapsed((v) => !v)}
+            aria-expanded={!snoozedCollapsed}
+          >
+            <span>Snoozed ({grouped.snoozed.length})</span>
+            <span className="section-caret">{snoozedCollapsed ? '▸' : '▾'}</span>
+          </button>
+          {!snoozedCollapsed && (
+            <TaskList
+              items={grouped.snoozed}
+              now={now}
+              onDone={markDone}
+              onEdit={(task) => setModal({ mode: 'edit', task })}
+              onSnooze={(id) => snoozeTask(id, 1)}
+            />
+          )}
         </>
       )}
-
-      <button className="add-button" onClick={() => setModal({ mode: 'add' })}>
-        + Add task
-      </button>
 
       {undo && (
         <div className="toast" role="status">
@@ -287,6 +344,13 @@ export default function App() {
           <button className="toast-action" onClick={() => setJustDue(null)}>
             OK
           </button>
+        </div>
+      )}
+
+      {celebration && (
+        <div className="celebration" key={celebration} aria-live="polite">
+          <span className="celebration-glyph">·</span>
+          <span>All tended to.</span>
         </div>
       )}
 
@@ -334,13 +398,38 @@ export default function App() {
           onImport={importData}
           onReset={resetToDefaults}
           onThemeChange={setTheme}
+          onOpenAdd={() => setModal({ mode: 'add' })}
         />
       )}
     </div>
   );
 }
 
-function TaskList({ items, now, onDone, onEdit, onQuickSnooze, showQuickSnooze }) {
+function QuickAdd({ onAdd }) {
+  const [value, setValue] = useState('');
+  function submit(e) {
+    e.preventDefault();
+    if (onAdd(value)) setValue('');
+  }
+  return (
+    <form className="quick-add" onSubmit={submit}>
+      <input
+        type="text"
+        value={value}
+        onChange={(e) => setValue(e.target.value)}
+        placeholder="Add a task…  (uses a 7–10 day default; edit later for tighter cadence)"
+        aria-label="Quick-add task"
+      />
+      {value.trim() && (
+        <button type="submit" className="quick-add-submit" aria-label="Add task">
+          ↵
+        </button>
+      )}
+    </form>
+  );
+}
+
+function TaskList({ items, now, onDone, onEdit, onSnooze }) {
   return (
     <div className="task-list">
       {items.map(({ task, state }) => (
@@ -349,67 +438,55 @@ function TaskList({ items, now, onDone, onEdit, onQuickSnooze, showQuickSnooze }
           task={task}
           state={state}
           now={now}
-          showQuickSnooze={showQuickSnooze}
           onDone={() => onDone(task.id)}
           onEdit={() => onEdit(task)}
-          onQuickSnooze={onQuickSnooze ? () => onQuickSnooze(task.id) : null}
+          onSnooze={() => onSnooze(task.id)}
         />
       ))}
     </div>
   );
 }
 
-function TaskRow({ task, state, now, onDone, onEdit, onQuickSnooze, showQuickSnooze }) {
+function TaskRow({ task, state, now, onDone, onEdit, onSnooze }) {
+  const { dx, handlers } = useGestures({
+    onTap: onDone,
+    onSwipeLeft: onSnooze,
+    onLongPress: onEdit,
+  });
+
+  const revealing = dx < -10;
+  const committed = dx <= -80;
+
   return (
-    <button className={`task ${state}`} onClick={onDone} aria-label={`Mark ${task.name} done`}>
-      <span className="task-dot" aria-hidden="true" />
-      <span className="task-body">
-        <div className="task-name">{task.name}</div>
-        <div className="task-meta">{metaText(task, now)}</div>
-        {task.notes && <div className="task-notes">{task.notes}</div>}
-      </span>
-      {showQuickSnooze && onQuickSnooze && (
-        <span
-          className="task-action"
-          role="button"
-          tabIndex={0}
-          onClick={(e) => {
-            e.stopPropagation();
-            onQuickSnooze();
-          }}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter' || e.key === ' ') {
-              e.preventDefault();
-              e.stopPropagation();
-              onQuickSnooze();
-            }
-          }}
-          aria-label={`Snooze ${task.name} 1 day`}
-          title="Snooze 1 day"
-        >
-          zzz
-        </span>
-      )}
-      <span
-        className="task-action"
+    <div className="task-row">
+      <div className={`task-swipe-pane ${committed ? 'committed' : ''}`}>
+        <span className="task-swipe-label">{committed ? 'Snooze 1 day' : 'Snooze…'}</span>
+      </div>
+      <div
+        className={`task ${state} ${revealing ? 'revealing' : ''}`}
+        style={{ transform: `translateX(${dx}px)`, transition: dx === 0 ? 'transform 0.22s ease' : 'none' }}
         role="button"
         tabIndex={0}
-        onClick={(e) => {
-          e.stopPropagation();
-          onEdit();
-        }}
+        aria-label={`${task.name}. Tap to mark done. Swipe left to snooze. Long press to edit.`}
         onKeyDown={(e) => {
           if (e.key === 'Enter' || e.key === ' ') {
             e.preventDefault();
-            e.stopPropagation();
+            onDone();
+          } else if (e.key === 'e') {
+            e.preventDefault();
             onEdit();
           }
         }}
-        aria-label={`Edit ${task.name}`}
+        {...handlers}
       >
-        edit
-      </span>
-    </button>
+        <span className="task-dot" aria-hidden="true" />
+        <span className="task-body">
+          <div className="task-name">{task.name}</div>
+          <div className="task-meta">{metaText(task, now)}</div>
+          {task.notes && <div className="task-notes">{task.notes}</div>}
+        </span>
+      </div>
+    </div>
   );
 }
 
@@ -667,7 +744,14 @@ function TaskModal({
   );
 }
 
-function SettingsModal({ theme, onClose, onExport, onImport, onReset, onThemeChange }) {
+function SettingsModal({
+  theme,
+  onClose,
+  onExport,
+  onImport,
+  onReset,
+  onThemeChange,
+}) {
   const [importError, setImportError] = useState('');
   const [confirmReset, setConfirmReset] = useState(false);
   const fileRef = useRef(null);
