@@ -1,86 +1,94 @@
 :root {
-  /* Warm neutrals — Japanese stationery palette (light) */
-  --bg: #f5efe4;
-  --bg-soft: #ece4d3;
-  --ink: #3a342b;
-  --ink-soft: #6b6255;
-  --ink-faint: #9a9184;
-  --line: #e2d9c6;
+  /* Warm paper base — lighter and more breathable than before */
+  --bg: #faf7f1;
+  --bg-soft: #f2ecdf;
+  --ink: #2a2622;
+  --ink-soft: #706a62;
+  --ink-faint: #a8a199;
+  --line: #ece4d0;
 
+  /* Per-state palette — each a distinct hue, all muted / mature */
   --fresh-bg: #ffffff;
-  --fresh-accent: #b7b09e;
+  --fresh-tint: #eef3ec;        /* barely-there sage wash */
+  --fresh-accent: #7ea287;       /* dusty sage */
 
-  --approaching-bg: #f8e7ca;
-  --approaching-accent: #c9924a;
+  --approaching-bg: #fdf4e1;     /* pale honey */
+  --approaching-accent: #c89459; /* honey-amber */
 
-  --due-bg: #f1d0b3;
-  --due-accent: #a86a3d;
+  --due-bg: #f6ddd2;             /* soft rose-peach */
+  --due-accent: #c27765;         /* dusty rose-coral */
 
-  --snooze-bg: #e6ddc9;
-  --snooze-accent: #8a7f6a;
+  --snooze-bg: #ecebe5;
+  --snooze-accent: #8d8a83;      /* muted slate */
 
-  --danger: #a85a4a;
-  --danger-soft: rgba(168, 90, 74, 0.25);
+  --danger: #b8594a;
+  --danger-soft: rgba(184, 89, 74, 0.22);
 
-  --shadow: 0 1px 2px rgba(58, 52, 43, 0.04), 0 4px 14px rgba(58, 52, 43, 0.06);
+  /* Light, single-layer shadows — airy */
+  --shadow: 0 1px 1px rgba(42, 38, 34, 0.03), 0 4px 16px rgba(42, 38, 34, 0.05);
+  --shadow-lift: 0 1px 2px rgba(42, 38, 34, 0.04), 0 8px 28px rgba(42, 38, 34, 0.06);
 
-  --radius: 14px;
-  --radius-sm: 10px;
+  --radius: 16px;
+  --radius-sm: 12px;
 }
 
-/* Warm dark palette — candlelight, not mud. */
+/* Dark — candlelight with a hint of color per state */
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme='light']) {
-    --bg: #1a1715;
-    --bg-soft: #242120;
-    --ink: #ede3d0;
+    --bg: #1a1613;
+    --bg-soft: #22201d;
+    --ink: #f0e7d4;
     --ink-soft: #b5ab99;
-    --ink-faint: #756c5e;
-    --line: #2e2a26;
+    --ink-faint: #7a7265;
+    --line: #2e2a25;
 
-    --fresh-bg: #242120;
-    --fresh-accent: #756c5e;
+    --fresh-bg: #252220;
+    --fresh-tint: #252220;
+    --fresh-accent: #8ab094;       /* sage, still muted */
 
-    --approaching-bg: #242120;
-    --approaching-accent: #e0a968;
+    --approaching-bg: #252220;
+    --approaching-accent: #e0a968; /* warm honey */
 
-    --due-bg: #242120;
-    --due-accent: #e88a5e;
+    --due-bg: #252220;
+    --due-accent: #e58770;         /* soft coral */
 
     --snooze-bg: #1e1c1a;
-    --snooze-accent: #806e5b;
+    --snooze-accent: #8f8a80;
 
     --danger: #e59a88;
     --danger-soft: rgba(229, 154, 136, 0.2);
 
-    --shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 4px 14px rgba(0, 0, 0, 0.35);
+    --shadow: 0 1px 2px rgba(0, 0, 0, 0.25), 0 4px 14px rgba(0, 0, 0, 0.3);
+    --shadow-lift: 0 1px 2px rgba(0, 0, 0, 0.3), 0 12px 30px rgba(0, 0, 0, 0.4);
   }
 }
 
 :root[data-theme='dark'] {
-  --bg: #1a1715;
-  --bg-soft: #242120;
-  --ink: #ede3d0;
+  --bg: #1a1613;
+  --bg-soft: #22201d;
+  --ink: #f0e7d4;
   --ink-soft: #b5ab99;
-  --ink-faint: #756c5e;
-  --line: #2e2a26;
+  --ink-faint: #7a7265;
+  --line: #2e2a25;
 
-  --fresh-bg: #242120;
-  --fresh-accent: #756c5e;
+  --fresh-bg: #252220;
+  --fresh-tint: #252220;
+  --fresh-accent: #8ab094;
 
-  --approaching-bg: #242120;
+  --approaching-bg: #252220;
   --approaching-accent: #e0a968;
 
-  --due-bg: #242120;
-  --due-accent: #e88a5e;
+  --due-bg: #252220;
+  --due-accent: #e58770;
 
   --snooze-bg: #1e1c1a;
-  --snooze-accent: #806e5b;
+  --snooze-accent: #8f8a80;
 
   --danger: #e59a88;
   --danger-soft: rgba(229, 154, 136, 0.2);
 
-  --shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 4px 14px rgba(0, 0, 0, 0.35);
+  --shadow: 0 1px 2px rgba(0, 0, 0, 0.25), 0 4px 14px rgba(0, 0, 0, 0.3);
+  --shadow-lift: 0 1px 2px rgba(0, 0, 0, 0.3), 0 12px 30px rgba(0, 0, 0, 0.4);
 }
 
 * {
@@ -130,9 +138,9 @@ h3 {
 }
 
 .app {
-  max-width: 560px;
+  max-width: 580px;
   margin: 0 auto;
-  padding: 20px 20px 60px;
+  padding: 20px 22px 80px;
 }
 
 /* Sticky header */
@@ -140,15 +148,15 @@ h3 {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
-  gap: 12px;
+  gap: 14px;
   position: sticky;
   top: 0;
   z-index: 10;
-  background: color-mix(in srgb, var(--bg) 92%, transparent);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
-  margin: 0 -20px 20px;
-  padding: 16px 20px 14px;
+  background: color-mix(in srgb, var(--bg) 88%, transparent);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  margin: 0 -22px 26px;
+  padding: 18px 22px 16px;
   border-bottom: 1px solid transparent;
   transition: border-color 0.2s ease;
 }
@@ -160,8 +168,9 @@ h3 {
 }
 
 .header h1 {
-  font-size: 32px;
-  letter-spacing: -0.015em;
+  font-size: 36px;
+  font-weight: 400;
+  letter-spacing: -0.02em;
   line-height: 1.05;
 }
 
@@ -170,17 +179,18 @@ h3 {
   font-size: 13px;
   color: var(--ink-faint);
   font-style: italic;
-  margin-top: 4px;
+  margin-top: 6px;
+  letter-spacing: 0.01em;
 }
 
 .header .summary {
   display: block;
   font-size: 14px;
   color: var(--ink-soft);
-  margin-top: 6px;
+  margin-top: 8px;
   font-family: 'Fraunces', Georgia, serif;
   font-style: italic;
-  letter-spacing: 0.01em;
+  letter-spacing: 0.005em;
 }
 
 .icon-button {
@@ -231,19 +241,20 @@ h3 {
 /* Quick-add */
 .quick-add {
   position: relative;
-  margin-bottom: 22px;
+  margin-bottom: 26px;
 }
 
 .quick-add input {
   width: 100%;
-  padding: 14px 44px 14px 18px;
+  padding: 16px 48px 16px 20px;
   background: var(--fresh-bg);
   border: 1px solid var(--line);
   border-radius: var(--radius);
   font-size: 15px;
   outline: none;
-  transition: border-color 0.15s ease, background 0.15s ease;
+  transition: border-color 0.18s ease, box-shadow 0.18s ease;
   box-shadow: var(--shadow);
+  color: var(--ink);
 }
 
 .quick-add input::placeholder {
@@ -252,34 +263,47 @@ h3 {
 }
 
 .quick-add input:focus {
-  border-color: var(--approaching-accent);
+  border-color: var(--fresh-accent);
+  box-shadow: var(--shadow-lift),
+    0 0 0 3px color-mix(in srgb, var(--fresh-accent) 18%, transparent);
 }
 
 .quick-add-submit {
   position: absolute;
-  right: 8px;
+  right: 10px;
   top: 50%;
   transform: translateY(-50%);
   width: 34px;
   height: 34px;
   border-radius: 50%;
-  background: var(--ink);
-  color: var(--bg);
+  background: var(--fresh-accent);
+  color: #fff;
   font-size: 15px;
   display: flex;
   align-items: center;
   justify-content: center;
   animation: fade 0.15s ease;
+  box-shadow: 0 2px 6px color-mix(in srgb, var(--fresh-accent) 40%, transparent);
 }
 
 /* Section labels */
 .section-label {
   font-size: 11px;
-  letter-spacing: 0.16em;
+  letter-spacing: 0.18em;
   text-transform: uppercase;
   color: var(--ink-faint);
-  margin: 24px 4px 12px;
+  margin: 28px 6px 14px;
   font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.section-label::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--line);
 }
 
 .section-toggle {
@@ -293,15 +317,35 @@ h3 {
   cursor: pointer;
 }
 
+.section-toggle::after {
+  display: none;
+}
+
+.section-toggle > span:first-child {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 1;
+}
+
+.section-toggle > span:first-child::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--line);
+  margin-left: 4px;
+}
+
 .section-caret {
   font-size: 12px;
   color: var(--ink-faint);
+  margin-left: 8px;
 }
 
 .task-list {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 14px;
 }
 
 /* Task row is a container that holds the card + a swipe-action pane */
@@ -317,13 +361,13 @@ h3 {
   display: flex;
   align-items: center;
   justify-content: flex-end;
-  padding-right: 22px;
+  padding-right: 24px;
   background: var(--snooze-bg);
   color: var(--snooze-accent);
   border-radius: var(--radius);
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 600;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.12em;
   text-transform: uppercase;
   transition: background 0.2s ease, color 0.2s ease;
 }
@@ -337,12 +381,12 @@ h3 {
   position: relative;
   display: flex;
   align-items: center;
-  gap: 14px;
-  padding: 18px 20px 18px 24px;
+  gap: 16px;
+  padding: 20px 22px 20px 26px;
   background: var(--fresh-bg);
   border-radius: var(--radius);
   box-shadow: var(--shadow);
-  border: 1px solid transparent;
+  border: 1px solid var(--line);
   text-align: left;
   width: 100%;
   touch-action: pan-y; /* allow vertical scroll, we handle horizontal */
@@ -350,49 +394,61 @@ h3 {
   -webkit-user-select: none;
   -webkit-tap-highlight-color: transparent;
   cursor: pointer;
+  transition: box-shadow 0.2s ease, background 0.3s ease, border-color 0.3s ease,
+    transform 0.15s ease;
 }
 
 .task:active {
   transform: scale(0.99);
+  box-shadow: var(--shadow);
 }
 
 .task::before {
   content: '';
   position: absolute;
   left: 0;
-  top: 10%;
-  bottom: 10%;
+  top: 12%;
+  bottom: 12%;
   width: 3px;
   border-radius: 0 3px 3px 0;
-  background: transparent;
-  transition: background 0.3s ease;
+  background: var(--fresh-accent);
+  opacity: 0.4;
+  transition: background 0.3s ease, opacity 0.3s ease;
 }
 
 .task.approaching::before {
   background: var(--approaching-accent);
+  opacity: 1;
 }
 
 .task.due::before {
   background: var(--due-accent);
+  opacity: 1;
 }
 
 .task.approaching {
   background: var(--approaching-bg);
-  border-color: rgba(201, 146, 74, 0.18);
+  border-color: rgba(200, 148, 89, 0.2);
 }
 
 .task.due {
   background: var(--due-bg);
-  border-color: rgba(168, 106, 61, 0.22);
+  border-color: rgba(194, 119, 101, 0.26);
 }
 
 .task.snoozed {
-  background: var(--fresh-bg);
-  opacity: 0.55;
+  background: var(--snooze-bg);
+  border-color: transparent;
+  opacity: 0.7;
+}
+
+.task.snoozed::before {
+  background: var(--snooze-accent);
+  opacity: 0.5;
 }
 
 .task.snoozed .task-dot {
-  background: var(--ink-faint);
+  background: var(--snooze-accent);
 }
 
 .task:focus-visible {
@@ -401,19 +457,22 @@ h3 {
 }
 
 .task-dot {
-  width: 10px;
-  height: 10px;
+  width: 11px;
+  height: 11px;
   border-radius: 50%;
   flex-shrink: 0;
   background: var(--fresh-accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--fresh-accent) 16%, transparent);
 }
 
 .task.approaching .task-dot {
   background: var(--approaching-accent);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--approaching-accent) 20%, transparent);
 }
 
 .task.due .task-dot {
   background: var(--due-accent);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--due-accent) 20%, transparent);
 }
 
 .task-body {
@@ -422,7 +481,7 @@ h3 {
 }
 
 .task-name {
-  font-size: 18px;
+  font-size: 17px;
   font-weight: 500;
   color: var(--ink);
   line-height: 1.3;
@@ -432,15 +491,16 @@ h3 {
 .task-meta {
   font-size: 12px;
   color: var(--ink-faint);
-  margin-top: 4px;
+  margin-top: 5px;
   font-style: italic;
+  letter-spacing: 0.01em;
 }
 
 .task-notes {
   font-size: 13px;
   color: var(--ink-soft);
-  margin-top: 6px;
-  line-height: 1.4;
+  margin-top: 8px;
+  line-height: 1.45;
   white-space: pre-wrap;
 }
 
