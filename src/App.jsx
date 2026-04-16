@@ -160,7 +160,9 @@ export default function App() {
     if (undoTimerRef.current) clearTimeout(undoTimerRef.current);
   }
 
-  function addTask({ name, intervalMin, intervalMax, notes }) {
+  function addTask({ name, intervalMin, intervalMax, notes, lastDoneAt }) {
+    // lastDoneAt: null means "not started yet"; otherwise a timestamp.
+    const history = lastDoneAt ? [lastDoneAt] : [];
     setTasks((prev) => [
       ...prev,
       normalizeTask({
@@ -169,7 +171,7 @@ export default function App() {
         intervalMin,
         intervalMax,
         notes,
-        history: [Date.now()],
+        history,
         order: prev.length,
       }),
     ]);
@@ -178,8 +180,24 @@ export default function App() {
   function quickAdd(name) {
     const trimmed = name.trim();
     if (!trimmed) return false;
-    addTask({ name: trimmed, intervalMin: 7, intervalMax: 10, notes: '' });
+    // Quick-add leaves the task unstarted — user taps to record first completion.
+    addTask({ name: trimmed, intervalMin: 7, intervalMax: 10, notes: '', lastDoneAt: null });
     return true;
+  }
+
+  function removeHistoryEntry(id, timestamp) {
+    const prevTask = tasks.find((t) => t.id === id);
+    if (!prevTask) return;
+    setTasks((prev) =>
+      prev.map((t) =>
+        t.id === id
+          ? { ...t, history: t.history.filter((ts) => ts !== timestamp) }
+          : t
+      )
+    );
+    if (undoTimerRef.current) clearTimeout(undoTimerRef.current);
+    setUndo({ task: prevTask, at: Date.now(), kind: 'remove' });
+    undoTimerRef.current = setTimeout(() => setUndo(null), UNDO_WINDOW_MS);
   }
 
   function updateTask(id, patch) {
@@ -234,8 +252,12 @@ export default function App() {
   }
 
   const currentTask = modal?.task ? tasks.find((t) => t.id === modal.task.id) : null;
-  const allResting = grouped.needsAttention.length === 0 && grouped.resting.length > 0;
+  const allResting =
+    grouped.needsAttention.length === 0 &&
+    grouped.unstarted.length === 0 &&
+    grouped.resting.length > 0;
   const nothingAtAll =
+    grouped.unstarted.length === 0 &&
     grouped.needsAttention.length === 0 &&
     grouped.resting.length === 0 &&
     grouped.snoozed.length === 0;
@@ -269,6 +291,19 @@ export default function App() {
       <QuickAdd onAdd={quickAdd} />
 
       {nothingAtAll && <div className="empty">No tasks yet. Add one above.</div>}
+
+      {grouped.unstarted.length > 0 && (
+        <>
+          <div className="section-label">Not started yet</div>
+          <TaskList
+            items={grouped.unstarted}
+            now={now}
+            onDone={markDone}
+            onEdit={(task) => setModal({ mode: 'edit', task })}
+            onSnooze={(id) => snoozeTask(id, 1)}
+          />
+        </>
+      )}
 
       {grouped.needsAttention.length > 0 && (
         <>
@@ -387,6 +422,8 @@ export default function App() {
           onMarkDoneDaysAgo={(daysAgo) =>
             markDoneAt(currentTask.id, Date.now() - daysAgo * DAY_MS)
           }
+          onMarkDoneAt={(ts) => markDoneAt(currentTask.id, ts)}
+          onRemoveHistoryEntry={(ts) => removeHistoryEntry(currentTask.id, ts)}
         />
       )}
 
@@ -503,6 +540,8 @@ function TaskModal({
   onSnooze,
   onWake,
   onMarkDoneDaysAgo,
+  onMarkDoneAt,
+  onRemoveHistoryEntry,
 }) {
   const [name, setName] = useState(task?.name ?? '');
   const [min, setMin] = useState(task?.intervalMin ?? 7);
@@ -510,11 +549,37 @@ function TaskModal({
   const [notes, setNotes] = useState(task?.notes ?? '');
   const [error, setError] = useState('');
   const [confirmDelete, setConfirmDelete] = useState(false);
+  // Add-mode: "when was the last time?"
+  const [addLastDone, setAddLastDone] = useState('unstarted');
+  // Edit-mode: ad-hoc "record a completion on date" picker
+  const [customDate, setCustomDate] = useState('');
+  const [addCustomDate, setAddCustomDate] = useState('');
+  const [historyConfirm, setHistoryConfirm] = useState(null); // timestamp pending removal
 
   const taskIndex = task ? tasks.findIndex((t) => t.id === task.id) : -1;
   const canMoveUp = taskIndex > 0;
   const canMoveDown = taskIndex >= 0 && taskIndex < tasks.length - 1;
   const snoozed = task && isSnoozed(task, now);
+
+  function resolveLastDone() {
+    switch (addLastDone) {
+      case 'unstarted':
+        return null;
+      case 'today':
+        return Date.now();
+      case 'yesterday':
+        return Date.now() - DAY_MS;
+      case '3days':
+        return Date.now() - 3 * DAY_MS;
+      case 'week':
+        return Date.now() - 7 * DAY_MS;
+      case 'custom':
+        if (!addCustomDate) return null;
+        return new Date(addCustomDate + 'T12:00:00').getTime();
+      default:
+        return null;
+    }
+  }
 
   function handleSubmit(e) {
     e.preventDefault();
@@ -524,10 +589,25 @@ function TaskModal({
     const maxN = Number(max);
     if (!Number.isFinite(minN) || minN < 1) return setError('Min must be 1 or more.');
     if (!Number.isFinite(maxN) || maxN < minN) return setError('Max must be ≥ min.');
-    onSave({ name: trimmed, intervalMin: minN, intervalMax: maxN, notes: notes.trim() });
+    const payload = {
+      name: trimmed,
+      intervalMin: minN,
+      intervalMax: maxN,
+      notes: notes.trim(),
+    };
+    if (mode === 'add') payload.lastDoneAt = resolveLastDone();
+    onSave(payload);
   }
 
-  const recent = task ? [...task.history].slice(-6).reverse() : [];
+  function handleCustomMarkDone() {
+    if (!customDate) return;
+    const ts = new Date(customDate + 'T12:00:00').getTime();
+    if (!Number.isFinite(ts)) return;
+    onMarkDoneAt(ts);
+    setCustomDate('');
+  }
+
+  const recent = task ? [...task.history].slice(-10).reverse() : [];
   const stats = task ? completionStats(task) : null;
 
   return (
@@ -578,6 +658,48 @@ function TaskModal({
           />
         </div>
 
+        {mode === 'add' && (
+          <>
+            <div className="subsection-label" style={{ marginTop: 4 }}>
+              When did you last do this?
+            </div>
+            <div className="chip-row">
+              {[
+                ['unstarted', 'Not sure / just tracking'],
+                ['today', 'Today'],
+                ['yesterday', 'Yesterday'],
+                ['3days', '3 days ago'],
+                ['week', 'A week ago'],
+                ['custom', 'Pick a date'],
+              ].map(([value, label]) => (
+                <button
+                  key={value}
+                  type="button"
+                  className={`chip ${addLastDone === value ? 'chip-active' : ''}`}
+                  onClick={() => setAddLastDone(value)}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+            {addLastDone === 'custom' && (
+              <input
+                type="date"
+                value={addCustomDate}
+                onChange={(e) => setAddCustomDate(e.target.value)}
+                max={new Date().toISOString().slice(0, 10)}
+                className="date-input"
+                style={{ marginTop: 10 }}
+              />
+            )}
+            <div className="hint">
+              {addLastDone === 'unstarted'
+                ? 'The task will sit in "Not started yet" until you tap it the first time.'
+                : 'Sets the starting point so the clock reflects when you actually did it.'}
+            </div>
+          </>
+        )}
+
         {error && <div className="hint" style={{ color: 'var(--danger)' }}>{error}</div>}
 
         <div className="modal-actions" style={{ marginTop: 18 }}>
@@ -593,7 +715,7 @@ function TaskModal({
           <>
             <div className="divider" />
 
-            <div className="subsection-label">Mark done</div>
+            <div className="subsection-label">Record a completion</div>
             <div className="modal-actions">
               <button
                 type="button"
@@ -624,8 +746,26 @@ function TaskModal({
                 3d ago
               </button>
             </div>
+            <div className="date-row" style={{ marginTop: 10 }}>
+              <input
+                type="date"
+                value={customDate}
+                onChange={(e) => setCustomDate(e.target.value)}
+                max={new Date().toISOString().slice(0, 10)}
+                className="date-input"
+                aria-label="Specific date"
+              />
+              <button
+                type="button"
+                className="btn btn-secondary"
+                disabled={!customDate}
+                onClick={handleCustomMarkDone}
+              >
+                Record
+              </button>
+            </div>
 
-            <div className="subsection-label" style={{ marginTop: 14 }}>
+            <div className="subsection-label" style={{ marginTop: 18 }}>
               History
             </div>
             {stats && stats.avgDays != null && (
@@ -634,20 +774,43 @@ function TaskModal({
                 {stats.avgDays === 1 ? '' : 's'}
               </div>
             )}
-            {stats && stats.avgDays == null && stats.count > 0 && (
+            {stats && stats.avgDays == null && stats.count === 1 && (
               <div className="hint" style={{ marginBottom: 8 }}>
-                {stats.count} completion{stats.count === 1 ? '' : 's'} so far
+                1 completion so far
               </div>
             )}
             {recent.length === 0 ? (
-              <div className="hint">No completions yet.</div>
+              <div className="hint">Not started yet — tap the row, or record a date above.</div>
             ) : (
               <div className="history-list">
-                {recent.map((ts, idx) => (
-                  <span key={ts + '-' + idx} className="history-chip">
-                    {shortDate(ts)}
-                  </span>
-                ))}
+                {recent.map((ts) => {
+                  const pending = historyConfirm === ts;
+                  return pending ? (
+                    <button
+                      type="button"
+                      key={ts + '-confirm'}
+                      className="history-chip history-chip--remove"
+                      onClick={() => {
+                        onRemoveHistoryEntry(ts);
+                        setHistoryConfirm(null);
+                      }}
+                      onBlur={() => setHistoryConfirm(null)}
+                      autoFocus
+                    >
+                      Remove?
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      key={ts}
+                      className="history-chip history-chip--button"
+                      onClick={() => setHistoryConfirm(ts)}
+                      title="Tap to remove this entry"
+                    >
+                      {shortDate(ts)}
+                    </button>
+                  );
+                })}
                 {task.history.length > recent.length && (
                   <span className="history-more">+{task.history.length - recent.length} more</span>
                 )}

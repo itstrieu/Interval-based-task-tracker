@@ -7,12 +7,12 @@ export function makeId() {
 export function normalizeTask(t, i = 0) {
   const legacyLastDone = Number.isFinite(t.lastDone) ? t.lastDone : null;
   let history;
-  if (Array.isArray(t.history) && t.history.length > 0) {
+  if (Array.isArray(t.history)) {
     history = t.history.filter((x) => Number.isFinite(x)).sort((a, b) => a - b);
   } else if (legacyLastDone != null) {
     history = [legacyLastDone];
   } else {
-    history = [Date.now()];
+    history = []; // new tasks start unstarted, not auto-done
   }
   return {
     id: t.id ?? makeId(),
@@ -30,7 +30,7 @@ export function normalizeTask(t, i = 0) {
 }
 
 export function lastDoneOf(task) {
-  return task.history[task.history.length - 1] ?? Date.now();
+  return task.history.length > 0 ? task.history[task.history.length - 1] : null;
 }
 
 /** Zero out to local midnight. */
@@ -52,10 +52,22 @@ export function isSnoozed(task, now) {
 
 export function stateFor(task, now) {
   if (isSnoozed(task, now)) return 'snoozed';
-  const d = daysSince(lastDoneOf(task), now);
+  const last = lastDoneOf(task);
+  if (last == null) return 'unstarted';
+  const d = daysSince(last, now);
   if (d >= task.intervalMax) return 'due';
   if (d >= task.intervalMin) return 'approaching';
   return 'fresh';
+}
+
+/** 0..1 progress toward approaching/due within the fresh range.
+ *  Used by the UI to warm up the accent as a fresh task ages. */
+export function freshProgress(task, now) {
+  const last = lastDoneOf(task);
+  if (last == null) return 0;
+  const d = daysSince(last, now);
+  if (d >= task.intervalMin) return 1;
+  return Math.max(0, Math.min(1, d / task.intervalMin));
 }
 
 export function rangeText(task) {
@@ -72,6 +84,9 @@ export function metaText(task, now) {
     return `snoozed until ${shortDate(task.snoozedUntil)} · every ${rangeText(task)}`;
   }
   const last = lastDoneOf(task);
+  if (last == null) {
+    return `not started yet · every ${rangeText(task)}`;
+  }
   const d = daysSince(last, now);
   const date = shortDate(last);
   if (d === 0) return `done today · every ${rangeText(task)}`;
@@ -95,26 +110,33 @@ export function completionStats(task) {
 
 /** Plain-English summary of the whole list. */
 export function listSummary(groups) {
+  const u = (groups.unstarted || []).length;
   const n = groups.needsAttention.length;
   const s = groups.snoozed.length;
-  if (n === 0 && s === 0) return 'Everything is resting.';
-  if (n === 0) return 'Nothing needs attention today.';
-  const thing = n === 1 ? 'thing' : 'things';
-  const attn = `${n} ${thing} could use attention`;
-  return s > 0 ? `${attn} · ${s} snoozed` : attn;
+  const parts = [];
+  if (u > 0) parts.push(`${u} not started`);
+  if (n > 0) parts.push(`${n} ${n === 1 ? 'thing' : 'things'} could use attention`);
+  if (s > 0) parts.push(`${s} snoozed`);
+  if (parts.length === 0) {
+    return (groups.resting || []).length > 0 ? 'Everything is resting.' : 'No tasks yet.';
+  }
+  return parts.join(' · ');
 }
 
 export function groupTasks(tasks, now) {
   const withState = tasks.map((t) => ({ task: t, state: stateFor(t, now) }));
-  const stateOrder = { due: 0, approaching: 1, fresh: 2, snoozed: 3 };
+  const stateOrder = { unstarted: -1, due: 0, approaching: 1, fresh: 2, snoozed: 3 };
   withState.sort((a, b) => {
     if (stateOrder[a.state] !== stateOrder[b.state]) {
       return stateOrder[a.state] - stateOrder[b.state];
     }
     if (a.task.order !== b.task.order) return a.task.order - b.task.order;
-    return daysSince(lastDoneOf(b.task), now) - daysSince(lastDoneOf(a.task), now);
+    const aLast = lastDoneOf(a.task) ?? now;
+    const bLast = lastDoneOf(b.task) ?? now;
+    return daysSince(bLast, now) - daysSince(aLast, now);
   });
   return {
+    unstarted: withState.filter((x) => x.state === 'unstarted'),
     needsAttention: withState.filter((x) => x.state === 'due' || x.state === 'approaching'),
     resting: withState.filter((x) => x.state === 'fresh'),
     snoozed: withState.filter((x) => x.state === 'snoozed'),
@@ -143,8 +165,10 @@ export const STARTER_TASKS = [
   { name: 'Water plants', intervalMin: 5, intervalMax: 7 },
 ];
 
-export function seedTasks(now = Date.now()) {
+export function seedTasks() {
+  // Starter tasks come in unstarted — the user taps each for the first time
+  // when they do it, so the clock reflects reality instead of "installed today".
   return STARTER_TASKS.map((t, i) =>
-    normalizeTask({ id: makeId(), ...t, history: [now], order: i })
+    normalizeTask({ id: makeId(), ...t, history: [], order: i })
   );
 }

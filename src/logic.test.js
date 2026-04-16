@@ -33,6 +33,16 @@ describe('normalizeTask', () => {
     expect(task.history).toEqual([now]);
   });
 
+  it('leaves history empty when no history and no legacy lastDone', () => {
+    const task = normalizeTask({ name: 'x', intervalMin: 1, intervalMax: 2 });
+    expect(task.history).toEqual([]);
+  });
+
+  it('preserves an empty history array explicitly', () => {
+    const task = normalizeTask({ name: 'x', intervalMin: 1, intervalMax: 2, history: [] });
+    expect(task.history).toEqual([]);
+  });
+
   it('sorts history ascending', () => {
     const task = normalizeTask({ name: 'x', intervalMin: 1, intervalMax: 2, history: [30, 10, 20] });
     expect(task.history).toEqual([10, 20, 30]);
@@ -47,6 +57,28 @@ describe('normalizeTask', () => {
     const task = normalizeTask({ name: 'x' });
     expect(task.intervalMin).toBe(1);
     expect(task.intervalMax).toBe(1);
+  });
+});
+
+describe('unstarted state', () => {
+  it('stateFor returns "unstarted" for tasks with empty history', () => {
+    expect(stateFor(t({ history: [] }), now)).toBe('unstarted');
+  });
+
+  it('lastDoneOf returns null for empty history', () => {
+    expect(lastDoneOf(t({ history: [] }))).toBeNull();
+  });
+
+  it('metaText for unstarted tasks says "not started yet"', () => {
+    expect(metaText(t({ history: [] }), now)).toMatch(/not started yet/);
+  });
+
+  it('groupTasks puts unstarted items in their own bucket', () => {
+    const u = t({ id: 'u', history: [] });
+    const f = t({ id: 'f', history: [now] });
+    const g = groupTasks([u, f], now);
+    expect(g.unstarted.map((x) => x.task.id)).toEqual(['u']);
+    expect(g.resting.map((x) => x.task.id)).toEqual(['f']);
   });
 });
 
@@ -111,18 +143,17 @@ describe('metaText', () => {
 });
 
 describe('groupTasks', () => {
-  it('splits into needsAttention / resting / snoozed', () => {
+  it('splits into unstarted / needsAttention / resting / snoozed', () => {
     const fresh = t({ id: 'f', history: [now] });
     const approaching = t({ id: 'a', history: [now - 11 * DAY_MS] });
     const due = t({ id: 'd', history: [now - 20 * DAY_MS] });
     const snoozed = t({ id: 's', history: [now - 20 * DAY_MS], snoozedUntil: now + DAY_MS });
-    const { needsAttention, resting, snoozed: snz } = groupTasks(
-      [fresh, approaching, due, snoozed],
-      now
-    );
-    expect(needsAttention.map((x) => x.task.id)).toEqual(['d', 'a']);
-    expect(resting.map((x) => x.task.id)).toEqual(['f']);
-    expect(snz.map((x) => x.task.id)).toEqual(['s']);
+    const unstarted = t({ id: 'u', history: [] });
+    const g = groupTasks([fresh, approaching, due, snoozed, unstarted], now);
+    expect(g.unstarted.map((x) => x.task.id)).toEqual(['u']);
+    expect(g.needsAttention.map((x) => x.task.id)).toEqual(['d', 'a']);
+    expect(g.resting.map((x) => x.task.id)).toEqual(['f']);
+    expect(g.snoozed.map((x) => x.task.id)).toEqual(['s']);
   });
 });
 
@@ -180,26 +211,40 @@ describe('completionStats', () => {
 });
 
 describe('listSummary', () => {
-  it('says everything is resting when empty', () => {
-    expect(listSummary({ needsAttention: [], resting: [], snoozed: [] })).toMatch(/resting/);
+  it('says everything is resting when only resting tasks exist', () => {
+    expect(
+      listSummary({ unstarted: [], needsAttention: [], resting: [{}], snoozed: [] })
+    ).toMatch(/resting/);
+  });
+
+  it('says no tasks yet when truly empty', () => {
+    expect(
+      listSummary({ unstarted: [], needsAttention: [], resting: [], snoozed: [] })
+    ).toMatch(/No tasks/);
   });
 
   it('counts attention items', () => {
     expect(
-      listSummary({ needsAttention: [{}, {}, {}], resting: [], snoozed: [] })
+      listSummary({ unstarted: [], needsAttention: [{}, {}, {}], resting: [], snoozed: [] })
     ).toMatch(/3 things/);
   });
 
   it('uses singular for one', () => {
     expect(
-      listSummary({ needsAttention: [{}], resting: [], snoozed: [] })
+      listSummary({ unstarted: [], needsAttention: [{}], resting: [], snoozed: [] })
     ).toMatch(/1 thing/);
   });
 
   it('mentions snoozed when relevant', () => {
     expect(
-      listSummary({ needsAttention: [{}], resting: [], snoozed: [{}] })
+      listSummary({ unstarted: [], needsAttention: [{}], resting: [], snoozed: [{}] })
     ).toMatch(/snoozed/);
+  });
+
+  it('mentions unstarted when relevant', () => {
+    expect(
+      listSummary({ unstarted: [{}, {}], needsAttention: [], resting: [], snoozed: [] })
+    ).toMatch(/2 not started/);
   });
 });
 

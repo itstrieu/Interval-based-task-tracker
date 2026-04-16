@@ -9,17 +9,20 @@
 
   /* Per-state palette — each a distinct hue, all muted / mature */
   --fresh-bg: #ffffff;
-  --fresh-tint: #eef3ec;        /* barely-there sage wash */
-  --fresh-accent: #7ea287;       /* dusty sage */
+  --fresh-tint: #eaf1e8;         /* soft sage wash for fresh cards */
+  --fresh-accent: #6d9778;       /* dusty sage */
 
-  --approaching-bg: #fdf4e1;     /* pale honey */
-  --approaching-accent: #c89459; /* honey-amber */
+  --approaching-bg: #f9e8c0;     /* warmer honey, visibly distinct */
+  --approaching-accent: #b88040; /* deeper honey */
 
-  --due-bg: #f6ddd2;             /* soft rose-peach */
-  --due-accent: #c27765;         /* dusty rose-coral */
+  --due-bg: #f0c9b8;             /* saturated dusty peach */
+  --due-accent: #a65a48;         /* dusty rose-coral */
 
-  --snooze-bg: #ecebe5;
-  --snooze-accent: #8d8a83;      /* muted slate */
+  --snooze-bg: #e3e5e2;          /* cool neutral */
+  --snooze-accent: #808380;      /* muted slate */
+
+  --unstarted-bg: #eef0f3;       /* cool mist — distinct from warm states */
+  --unstarted-accent: #7a8698;   /* dusty blue-gray */
 
   --danger: #b8594a;
   --danger-soft: rgba(184, 89, 74, 0.22);
@@ -55,6 +58,9 @@
     --snooze-bg: #1e1c1a;
     --snooze-accent: #8f8a80;
 
+    --unstarted-bg: #1e2024;
+    --unstarted-accent: #8a95a8;
+
     --danger: #e59a88;
     --danger-soft: rgba(229, 154, 136, 0.2);
 
@@ -83,6 +89,9 @@
 
   --snooze-bg: #1e1c1a;
   --snooze-accent: #8f8a80;
+
+  --unstarted-bg: #1e2024;
+  --unstarted-accent: #8a95a8;
 
   --danger: #e59a88;
   --danger-soft: rgba(229, 154, 136, 0.2);
@@ -451,6 +460,22 @@ h3 {
   background: var(--snooze-accent);
 }
 
+.task.unstarted {
+  background: var(--unstarted-bg);
+  border-color: rgba(122, 134, 152, 0.2);
+  border-style: dashed;
+}
+
+.task.unstarted::before {
+  background: var(--unstarted-accent);
+  opacity: 0.6;
+}
+
+.task.unstarted .task-dot {
+  background: var(--unstarted-accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--unstarted-accent) 18%, transparent);
+}
+
 .task:focus-visible {
   outline: 2px solid var(--approaching-accent);
   outline-offset: 2px;
@@ -707,8 +732,27 @@ h3 {
   font-size: 12px;
   color: var(--ink-soft);
   background: var(--bg-soft);
-  padding: 4px 10px;
+  padding: 5px 12px;
   border-radius: 999px;
+  border: 1px solid transparent;
+  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+}
+
+.history-chip--button {
+  cursor: pointer;
+}
+
+.history-chip--button:hover {
+  background: var(--fresh-bg);
+  color: var(--ink);
+  border-color: var(--line);
+}
+
+.history-chip--remove {
+  background: var(--danger-soft);
+  color: var(--danger);
+  border-color: transparent;
+  cursor: pointer;
 }
 
 .history-more {
@@ -716,6 +760,64 @@ h3 {
   color: var(--ink-faint);
   font-style: italic;
   padding: 4px 4px;
+}
+
+/* Chips used for "When did you last do this?" */
+.chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 6px;
+}
+
+.chip {
+  font-size: 13px;
+  color: var(--ink-soft);
+  background: var(--bg-soft);
+  border: 1px solid transparent;
+  padding: 8px 14px;
+  border-radius: 999px;
+  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+  cursor: pointer;
+}
+
+.chip:hover {
+  background: var(--fresh-bg);
+}
+
+.chip-active {
+  background: var(--fresh-bg);
+  color: var(--ink);
+  border-color: var(--fresh-accent);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--fresh-accent) 22%, transparent);
+}
+
+.date-row {
+  display: flex;
+  gap: 10px;
+  align-items: stretch;
+}
+
+.date-row .btn {
+  flex: 0 0 auto;
+  min-width: 0;
+}
+
+.date-input {
+  flex: 1;
+  padding: 10px 14px;
+  background: var(--fresh-bg);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  font-size: 15px;
+  color: var(--ink);
+  outline: none;
+  font-family: inherit;
+  min-height: 44px;
+}
+
+.date-input:focus {
+  border-color: var(--fresh-accent);
 }
 
 .theme-picker {
